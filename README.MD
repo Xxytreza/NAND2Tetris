@@ -3,6 +3,6 @@
 
 ## Requirements
 
-- VeriLog
+- VeriLog (verible for nixos package)
 - Python
   - NumPy
