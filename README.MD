@@ -3,6 +3,10 @@
 
 ## Requirements
 
-- VeriLog (verible for nixos package)
+- VeryLog (verible for nixos package)
 - Python
   - NumPy
+
+## Help for verylog
+
+- https://www.chipverify.com/verilog/
