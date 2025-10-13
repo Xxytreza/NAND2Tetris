@@ -1,5 +1,5 @@
 {
-  description = "NAND2Tetris - From nand to deep learning: design an AI accelerator";
+  description = "Verilog development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -14,12 +14,13 @@
       {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            verible
-            python3
-            python3Packages.pip
-            python3Packages.virtualenv
-            bazel
-            gcc
+            # Verilog tools
+            iverilog        # Icarus Verilog simulator
+            gtkwave         # Waveform viewer
+            verilator       # High-performance Verilog simulator
+            yosys           # Synthesis tool
+            
+            # Build tools
             gnumake
           ];
         };
