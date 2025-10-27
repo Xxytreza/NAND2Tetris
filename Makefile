@@ -5,12 +5,7 @@ all: test
 
 test: build
 	@echo "🚀 Running all testbenches..."
-	@for dir in $(SUBDIRS); do \
-		if [ -f $$dir/Makefile ]; then \
-			echo "➡️  Entering $$dir"; \
-			$(MAKE) --silent -C $$dir BUILD_DIR=$(BUILD_DIR) test || exit 1; \
-		fi \
-	done
+	${MAKE} --silent -B -C src BUILD_DIR=$(BUILD_DIR) test || exit 1
 	@echo "✅ All testbenches completed!"
 
 build: 
@@ -19,10 +14,6 @@ build:
 
 clean: 
 	@echo "🧹 Cleaning up all generated files..."
-	@for dir in $(SUBDIRS); do \
-		if [ -f $$dir/Makefile ]; then \
-			$(MAKE) --silent -C $$dir clean || exit 1; \
-		fi \
-	done
+	${MAKE} -C src --silent clean || exit 1
 	rm -rf $(BUILD_DIR)
 	@echo "🧼 Cleanup completed!"
