@@ -1,6 +1,6 @@
 // Simple 2-input 1_bit adder module
 
-module one_bit_adder (
+module bit_adder_1 (
     input wire a,      // First input
     input wire b,      // Second input
     output wire sum,   // Sum output

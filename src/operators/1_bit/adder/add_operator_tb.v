@@ -1,11 +1,11 @@
 `timescale 1ns/1ps
 
-module one_bit_adder_tb;
+module bit_adder_1_tb;
 
     reg a, b;
     wire sum, carry;
 
-    one_bit_adder dut (
+    bit_adder_1 dut (
         .a(a),
         .b(b),
         .sum(sum),
@@ -15,8 +15,8 @@ module one_bit_adder_tb;
     // Combine VCD setup with stimulus
     initial begin
         // Waveform dump
-        $dumpfile("build/waves/one_bit_adder_tb.vcd");
-        $dumpvars(0, one_bit_adder_tb);
+        $dumpfile("build/waves/bit_adder_1_tb.vcd");
+        $dumpvars(0, bit_adder_1_tb);
 
         // Header
         $display("Time\ta\tb\tsum\tcarry");
