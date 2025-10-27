@@ -16,7 +16,7 @@ LOGS_DIR := $(BUILD_DIR)/logs
 SRC_DIR := src
 BASIC_DIR := $(SRC_DIR)/basic
 OPERATORS_DIR := $(SRC_DIR)/operators
-ADVANCED_DIR := $(SRC_DIR)/advanced
+CPU_DIR := $(SRC_DIR)/cpus
 
 # Find all testbenches recursively
 TESTBENCHES := $(shell find $(SRC_DIR) -name "*_tb.v")
@@ -25,7 +25,7 @@ TESTBENCHES := $(shell find $(SRC_DIR) -name "*_tb.v")
 VVP_FILES := $(TESTBENCHES:$(SRC_DIR)/%.v=$(BUILD_DIR)/%.vvp)
 
 # Default target
-all: test
+all: $(BUILD_DIR)/cpu_wrapper.vvp | $(BUILD_DIR) $(WAVES_DIR) $(LOGS_DIR)
 
 # ===============================
 # 1️⃣ Create build directories
@@ -41,7 +41,7 @@ $(BUILD_DIR) $(WAVES_DIR) $(LOGS_DIR):
 # Find all non-testbench source files
 BASIC_SRC := $(shell find $(BASIC_DIR) -name "*.v" ! -name "*_tb.v" 2>/dev/null)
 OPERATORS_SRC := $(shell find $(OPERATORS_DIR) -name "*.v" ! -name "*_tb.v" 2>/dev/null)
-ADVANCED_SRC := $(shell find $(ADVANCED_DIR) -name "*.v" ! -name "*_tb.v" 2>/dev/null)
+CPU_SRC := $(shell find $(CPU_DIR) -name "*.v" ! -name "*_tb.v" 2>/dev/null)
 
 
 $(BUILD_DIR)/%.vvp: $(SRC_DIR)/%.v | $(BUILD_DIR) $(WAVES_DIR) $(LOGS_DIR)
@@ -49,7 +49,7 @@ $(BUILD_DIR)/%.vvp: $(SRC_DIR)/%.v | $(BUILD_DIR) $(WAVES_DIR) $(LOGS_DIR)
 	@echo "🔧 Compiling $< ..."
 	$(IVERILOG) -o $@ \
 		-DBUILD_DIR=\"$(WAVES_DIR)\" \
-		$(BASIC_SRC) $(OPERATORS_SRC) $(ADVANCED_SRC) $<
+		$(BASIC_SRC) $(OPERATORS_SRC) $(CPU_SRC) $<
 	@echo "✅ Compiled $< to $@"
 
 
