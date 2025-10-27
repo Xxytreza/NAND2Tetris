@@ -6,7 +6,7 @@ VVP = vvp
 GTKWAVE = gtkwave
 
 # Directories
-SRC_DIR = src
+SRC_DIR = src/basic/1_bit/and_gate
 BUILD_DIR = build
 
 TOP_MODULE = and_gate_tb
@@ -15,6 +15,7 @@ VVP_FILE = $(BUILD_DIR)/$(TOP_MODULE).vvp
 
 # Source files
 VERILOG_SOURCES = $(wildcard $(SRC_DIR)/*.v)
+
 
 # Default target
 all: simulate
@@ -60,6 +61,29 @@ lint:
 	else \
 		echo "Verilator not available for linting"; \
 	fi
+
+
+
+
+# ------------------------- Make test target -------------------------
+# Automatically find all testbenches
+TESTBENCHES := $(shell find src -name "*_tb.v")
+VVP_FILES := $(TESTBENCHES:src/%.v=build/%.vvp)
+
+# Compile each testbench
+build/%.vvp: src/%.v
+	@mkdir -p $(dir $@)
+	@echo "Compiling $< ..."
+	$(IVERILOG) -o $@ -I$(dir $<) $(wildcard $(dir $<)*.v)
+
+# Run all testbenches
+test: $(VVP_FILES)
+	@for vvp_file in $(VVP_FILES); do \
+		echo "Running $$vvp_file..."; \
+		$(VVP) $$vvp_file || exit 1; \
+	done
+	@echo "✅ All testbenches completed successfully"
+
 
 # Help target
 help:
