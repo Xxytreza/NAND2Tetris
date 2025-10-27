@@ -3,7 +3,7 @@
 
 `timescale 1ns/1ps
 
-module and_gate_tb;
+module and_gate_tb_4;
 
     // Testbench signals
     reg a, b;           // Inputs (reg type for testbench)
@@ -13,13 +13,6 @@ module and_gate_tb;
     reg [3:0] inputs_4bit;
     wire result_4bit;
 
-    // Instantiate the Device Under Test (DUT)
-    and_gate dut (
-        .a(a),
-        .b(b),
-        .y(y)
-    );
-    
     // Instantiate 4-bit AND gate
     and_gate_4bit dut_4bit (
         .inputs(inputs_4bit),
@@ -37,19 +30,6 @@ module and_gate_tb;
         // Display header
         $display("Time\ta\tb\ty\t| 4bit_in\t4bit_out");
         $display("----\t-\t-\t-\t| -------\t--------");
-        
-        // Test all combinations for 2-input AND gate
-        a = 0; b = 0; inputs_4bit = 4'b0000; #10;
-        $display("%4t\t%b\t%b\t%b\t| %4b\t\t%b", $time, a, b, y, inputs_4bit, result_4bit);
-        
-        a = 0; b = 1; inputs_4bit = 4'b0001; #10;
-        $display("%4t\t%b\t%b\t%b\t| %4b\t\t%b", $time, a, b, y, inputs_4bit, result_4bit);
-        
-        a = 1; b = 0; inputs_4bit = 4'b1010; #10;
-        $display("%4t\t%b\t%b\t%b\t| %4b\t\t%b", $time, a, b, y, inputs_4bit, result_4bit);
-        
-        a = 1; b = 1; inputs_4bit = 4'b1111; #10;
-        $display("%4t\t%b\t%b\t%b\t| %4b\t\t%b", $time, a, b, y, inputs_4bit, result_4bit);
         
         // Additional test cases for 4-bit AND
         inputs_4bit = 4'b1110; #10;
