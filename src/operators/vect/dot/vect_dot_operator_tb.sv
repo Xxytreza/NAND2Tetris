@@ -26,11 +26,12 @@ module vect_dot_operator_tb;
     // Test variables
     integer i;
     integer errors;
+    reg [31:0] expected;
     
     // Main test procedure
     initial begin
         $display("========================================");
-        $display("Vector Multiplication Testbench");
+        $display("Vector Dot Product Testbench");
         $display("========================================");
         
         errors = 0;
@@ -41,92 +42,131 @@ module vect_dot_operator_tb;
             v2[i] = 32'd0;
         end
         
-        // Test 1: Simple multiplication with n=4
+        // Test 1: Simple dot product with n=4
+        // Expected: 2*3 + 4*5 + 1*10 + 7*2 = 6 + 20 + 10 + 14 = 50
         $display("\nTest 1: Vector size n=4, simple values");
+        // Reset vectors
+        for (i = 0; i < MAX_N; i = i + 1) begin
+            v1[i] = 32'd0;
+            v2[i] = 32'd0;
+        end
         n = 32'd4;
-        v1[0] = 32'd2;  v2[0] = 32'd3;   // Expected: 6
-        v1[1] = 32'd4;  v2[1] = 32'd5;   // Expected: 20
-        v1[2] = 32'd1;  v2[2] = 32'd10;  // Expected: 10
-        v1[3] = 32'd7;  v2[3] = 32'd2;   // Expected: 14
+        v1[0] = 32'd2;  v2[0] = 32'd3;
+        v1[1] = 32'd4;  v2[1] = 32'd5;
+        v1[2] = 32'd1;  v2[2] = 32'd10;
+        v1[3] = 32'd7;  v2[3] = 32'd2;
+        expected = 32'd50;
         #10;
         
-        $display("Results:");
-        for (i = 0; i < TEST_SIZE_1; i = i + 1) begin
-            $display("  result[%0d] = %0d (v1[%0d]=%0d * v2[%0d]=%0d)", 
-                     i, result[i], i, v1[i], i, v2[i]);
+        $display("Result: %0d (expected: %0d)", result, expected);
+        if (result != expected) begin
+            $display("  ERROR: Mismatch!");
+            errors = errors + 1;
+        end else begin
+            $display("  PASS");
         end
         
-        // Test 2: Multiplication with zeros
+        // Test 2: Dot product with zeros
+        // Expected: 0*5 + 3*0 + 0*0 + 8*1 = 8
         $display("\nTest 2: Vector size n=4, with zeros");
+        // Reset vectors
+        for (i = 0; i < MAX_N; i = i + 1) begin
+            v1[i] = 32'd0;
+            v2[i] = 32'd0;
+        end
         n = 32'd4;
-        v1[0] = 32'd0;  v2[0] = 32'd5;   // Expected: 0
-        v1[1] = 32'd3;  v2[1] = 32'd0;   // Expected: 0
-        v1[2] = 32'd0;  v2[2] = 32'd0;   // Expected: 0
-        v1[3] = 32'd8;  v2[3] = 32'd1;   // Expected: 8
+        v1[0] = 32'd0;  v2[0] = 32'd5;
+        v1[1] = 32'd3;  v2[1] = 32'd0;
+        v1[2] = 32'd0;  v2[2] = 32'd0;
+        v1[3] = 32'd8;  v2[3] = 32'd1;
+        expected = 32'd8;
         #10;
         
-        $display("Results:");
-        for (i = 0; i < TEST_SIZE_1; i = i + 1) begin
-            $display("  result[%0d] = %0d", i, result[i]);
+        $display("Result: %0d (expected: %0d)", result, expected);
+        if (result != expected) begin
+            $display("  ERROR: Mismatch!");
+            errors = errors + 1;
+        end else begin
+            $display("  PASS");
         end
         
         // Test 3: Larger vector size n=8
+        // Expected: 1*2 + 2*2 + 3*2 + 4*2 + 5*2 + 6*2 + 7*2 + 8*2 = 72
         $display("\nTest 3: Vector size n=8");
+        // Reset vectors
+        for (i = 0; i < MAX_N; i = i + 1) begin
+            v1[i] = 32'd0;
+            v2[i] = 32'd0;
+        end
         n = 32'd8;
         for (i = 0; i < 8; i = i + 1) begin
-            v1[i] = i + 1;      // 1, 2, 3, 4, 5, 6, 7, 8
-            v2[i] = 2;          // All 2s
+            v1[i] = i + 1;
+            v2[i] = 2;
         end
+        expected = 32'd72;
         #10;
         
-        $display("Results (expected: 2, 4, 6, 8, 10, 12, 14, 16):");
-        for (i = 0; i < TEST_SIZE_2; i = i + 1) begin
-            $display("  result[%0d] = %0d", i, result[i]);
+        $display("Result: %0d (expected: %0d)", result, expected);
+        if (result != expected) begin
+            $display("  ERROR: Mismatch!");
+            errors = errors + 1;
+        end else begin
+            $display("  PASS");
         end
         
-        // Test 4: Variable size - only first n elements should be computed
-        $display("\nTest 4: Variable size test (n=3, but arrays have more data)");
+        // Test 4: Variable size - only first n elements computed
+        // Expected: 10*10 + 10*10 + 10*10 = 300
+        $display("\nTest 4: Variable size test (n=3)");
         n = 32'd3;
         for (i = 0; i < MAX_N; i = i + 1) begin
             v1[i] = 32'd10;
-            v2[i] = 32'd10;     // All should be 100
+            v2[i] = 32'd10;
         end
+        expected = 32'd300;
         #10;
         
-        $display("Results (only first 3 should be non-zero):");
-        for (i = 0; i < 6; i = i + 1) begin
-            $display("  result[%0d] = %0d (expected: %0d)", 
-                     i, result[i], (i < 3) ? 100 : 0);
-            if (i < 3 && result[i] != 32'd100) errors = errors + 1;
-            if (i >= 3 && result[i] != 32'd0) errors = errors + 1;
+        $display("Result: %0d (expected: %0d)", result, expected);
+        if (result != expected) begin
+            $display("  ERROR: Mismatch!");
+            errors = errors + 1;
+        end else begin
+            $display("  PASS");
         end
         
         // Test 5: Edge case - n=0
+        // Expected: 0 (no elements)
         $display("\nTest 5: Edge case n=0");
         n = 32'd0;
         v1[0] = 32'd5;  v2[0] = 32'd5;
+        expected = 32'd0;
         #10;
         
-        $display("Results (all should be zero):");
-        for (i = 0; i < 4; i = i + 1) begin
-            $display("  result[%0d] = %0d", i, result[i]);
-            if (result[i] != 32'd0) errors = errors + 1;
+        $display("Result: %0d (expected: %0d)", result, expected);
+        if (result != expected) begin
+            $display("  ERROR: Mismatch!");
+            errors = errors + 1;
+        end else begin
+            $display("  PASS");
         end
         
         // Test 6: Maximum size
+        // Expected: 128 (1*1 + 1*1 + ... 128 times)
         $display("\nTest 6: Maximum size n=128");
         n = 32'd128;
         for (i = 0; i < MAX_N; i = i + 1) begin
             v1[i] = 32'd1;
             v2[i] = 32'd1;
         end
+        expected = 32'd128;
         #10;
         
-        $display("Results (showing first and last few):");
-        $display("  result[0] = %0d", result[0]);
-        $display("  result[1] = %0d", result[1]);
-        $display("  result[126] = %0d", result[126]);
-        $display("  result[127] = %0d", result[127]);
+        $display("Result: %0d (expected: %0d)", result, expected);
+        if (result != expected) begin
+            $display("  ERROR: Mismatch!");
+            errors = errors + 1;
+        end else begin
+            $display("  PASS");
+        end
         
         // Summary
         $display("\n========================================");
