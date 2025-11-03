@@ -3,7 +3,7 @@
 # ===============================
 
 # Tools
-IVERILOG = iverilog
+IVERILOG = iverilog -g2012
 VVP = vvp
 GTKWAVE = gtkwave
 
@@ -19,10 +19,10 @@ OPERATORS_DIR := $(SRC_DIR)/operators
 CPU_DIR := $(SRC_DIR)/cpus
 
 # Find all testbenches recursively
-TESTBENCHES := $(shell find $(SRC_DIR) -name "*_tb.v")
+TESTBENCHES := $(shell find $(SRC_DIR) -name "*_tb.sv")
 
 # Map testbenches to build outputs
-VVP_FILES := $(TESTBENCHES:$(SRC_DIR)/%.v=$(BUILD_DIR)/%.vvp)
+VVP_FILES := $(TESTBENCHES:$(SRC_DIR)/%.sv=$(BUILD_DIR)/%.vvp)
 
 # Default target
 all: $(BUILD_DIR)/cpu_wrapper.vvp | $(BUILD_DIR) $(WAVES_DIR) $(LOGS_DIR)
@@ -39,12 +39,12 @@ $(BUILD_DIR) $(WAVES_DIR) $(LOGS_DIR):
 # Generic rule: compile testbench with all sources it may depend on
 # Precompute source file lists once
 # Find all non-testbench source files
-BASIC_SRC := $(shell find $(BASIC_DIR) -name "*.v" ! -name "*_tb.v" 2>/dev/null)
-OPERATORS_SRC := $(shell find $(OPERATORS_DIR) -name "*.v" ! -name "*_tb.v" 2>/dev/null)
-CPU_SRC := $(shell find $(CPU_DIR) -name "*.v" ! -name "*_tb.v" 2>/dev/null)
+BASIC_SRC := $(shell find $(BASIC_DIR) -name "*.sv" ! -name "*_tb.sv" 2>/dev/null)
+OPERATORS_SRC := $(shell find $(OPERATORS_DIR) -name "*.sv" ! -name "*_tb.sv" 2>/dev/null)
+CPU_SRC := $(shell find $(CPU_DIR) -name "*.sv" ! -name "*_tb.sv" 2>/dev/null)
 
 
-$(BUILD_DIR)/%.vvp: $(SRC_DIR)/%.v | $(BUILD_DIR) $(WAVES_DIR) $(LOGS_DIR)
+$(BUILD_DIR)/%.vvp: $(SRC_DIR)/%.sv | $(BUILD_DIR) $(WAVES_DIR) $(LOGS_DIR)
 	@mkdir -p $(dir $@)
 	@echo "🔧 Compiling $< ..."
 	$(IVERILOG) -o $@ \
