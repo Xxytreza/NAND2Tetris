@@ -14,7 +14,7 @@ module vect_dot_operator_tb;
     wire [31:0] result;
     
     // Instantiate the module under test
-    vect_mult_operator #(
+    vect_dot_operator #(
         .MAX_N(MAX_N)
     ) dut (
         .n(n),
