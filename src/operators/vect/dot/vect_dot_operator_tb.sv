@@ -9,8 +9,8 @@ module vect_dot_operator_tb;
     
     // Testbench signals
     reg [31:0] n;
-    reg [MAX_N-1:0][31:0] v1;
-    reg [MAX_N-1:0][31:0] v2;
+    reg [31:0] v1 [MAX_N-1:0];
+    reg [31:0] v2 [MAX_N-1:0];
     wire [31:0] result;
     
     // Instantiate the module under test

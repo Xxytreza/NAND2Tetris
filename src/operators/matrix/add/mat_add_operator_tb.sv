@@ -1,39 +1,56 @@
 `timescale 1ns/1ps
 
-module vect_add_operator_tb;
+module mat_add_operator_tb;
 
     // Parameters
     parameter int MAX_N = 128;
+    parameter int MAX_M = 128;
 
     // Testbench signals
     reg  [31:0] n;
-    reg  [31:0] v1 [MAX_N-1:0];
-    reg  [31:0] v2 [MAX_N-1:0];
-    wire [31:0] result [MAX_N-1:0];
+    reg  [31:0] m;
+    reg  [31:0] m1 [MAX_N-1:0][MAX_M-1:0];
+    reg  [31:0] m2 [MAX_N-1:0][MAX_M-1:0];
+    wire [31:0] result [MAX_N-1:0][MAX_M-1:0];
 
     // Instantiate DUT
-    vect_add_operator #(
-        .MAX_N(MAX_N)
+    mat_add_operator #(
+        .MAX_N(MAX_N),
+        .MAX_M(MAX_M)
     ) dut (
         .n(n),
-        .v1(v1),
-        .v2(v2),
+        .m(m),
+        .m1(m1),
+        .m2(m2),
         .result(result)
     );
 
     integer i;
+    integer j;
     integer errors;
-    reg [31:0] expected [MAX_N];
+    reg [31:0] expected [MAX_N][MAX_M];
 
     task check_results;
         input string label;
         begin
             $display("\n%s", label);
             for (i = 0; i < n; i++) begin
-                if (result[i] !== expected[i]) begin
-                    $display("  ERROR: index %0d result=%0d expected=%0d",
-                             i, result[i], expected[i]);
-                    errors++;
+                for (j = 0; j < m; j++) begin
+                    if (result[i][j] !== expected[i][j]) begin
+                        $display("  ERROR: index [%0d][%0d] result=%0d expected=%0d",
+                                 i, j, result[i][j], expected[i][j]);
+                        errors++;
+                    end
+                end
+            end
+            // Check unused rows are zeroed
+            for (i = n; i < MAX_N; i++) begin
+                for (j = 0; j < MAX_M; j++) begin
+                    if (result[i][j] !== 0) begin
+                        $display("  ERROR: unused index [%0d][%0d] result=%0d expected=0",
+                                 i, j, result[i][j]);
+                        errors++;
+                    end
                 end
             end
             if (errors == 0)
@@ -43,43 +60,49 @@ module vect_add_operator_tb;
 
     initial begin
         $display("\n\n\n========================================");
-        $display("Vector Add Operator Testbench");
+        $display("Matrix Add Operator Testbench");
         $display("========================================");
 
         errors = 0;
 
-        // Initialize vectors
+        // Initialize matrices
         for (i = 0; i < MAX_N; i++) begin
-            v1[i] = 0;
-            v2[i] = 0;
+            for (j = 0; j < MAX_M; j++) begin
+                m1[i][j] = 0;
+                m2[i][j] = 0;
+            end
         end
 
         // ------------------------------------------------------------
-        // Test 1: Simple n = 4
+        // Test 1: Simple n = 4, m = 1
         // ------------------------------------------------------------
         n = 4;
-        v1[0]=2; v2[0]=3;
-        v1[1]=4; v2[1]=5;
-        v1[2]=1; v2[2]=10;
-        v1[3]=7; v2[3]=2;
+        m = 1;
+        m1[0][0]=2; m2[0][0]=3;
+        m1[1][0]=4; m2[1][0]=5;
+        m1[2][0]=1; m2[2][0]=10;
+        m1[3][0]=7; m2[3][0]=2;
 
         for (i = 0; i < n; i++)
-            expected[i] = v1[i] + v2[i];
+            for (j = 0; j < m; j++)
+                expected[i][j] = m1[i][j] + m2[i][j];
 
         #10;
-        check_results("Test 1: Simple vector addition");
+        check_results("Test 1: Simple matrix addition");
 
         // ------------------------------------------------------------
         // Test 2: Zeros mixed
         // ------------------------------------------------------------
         n = 4;
-        v1[0]=0; v2[0]=5;
-        v1[1]=3; v2[1]=0;
-        v1[2]=0; v2[2]=0;
-        v1[3]=8; v2[3]=1;
+        m = 4;
+        m1[0][2]=0; m2[0][3]=5;
+        m1[1][0]=3; m2[1][0]=0;
+        m1[2][1]=0; m2[2][0]=0;
+        m1[3][0]=8; m2[3][2]=1;
 
         for (i = 0; i < n; i++)
-            expected[i] = v1[i] + v2[i];
+            for (j = 0; j < m; j++)
+                expected[i][j] = m1[i][j] + m2[i][j];
 
         #10;
         check_results("Test 2: With zeros");
@@ -88,10 +111,13 @@ module vect_add_operator_tb;
         // Test 3: n = 8 sequence
         // ------------------------------------------------------------
         n = 8;
+        m = 8;
         for (i = 0; i < n; i++) begin
-            v1[i] = i + 1;
-            v2[i] = 2;
-            expected[i] = v1[i] + v2[i];
+            for (j = 0; j < m; j++) begin
+                m1[i][j] = i + 1;
+                m2[i][j] = 2;
+                expected[i][j] = m1[i][j] + m2[i][j];
+            end
         end
 
         #10;
@@ -102,11 +128,11 @@ module vect_add_operator_tb;
         // ------------------------------------------------------------
         n = 3;
         for (i = 0; i < MAX_N; i++) begin
-            v1[i] = 10;
-            v2[i] = 10;
+            m1[i][0] = 10;
+            m2[i][0] = 10;
         end
         for (i = 0; i < n; i++)
-            expected[i] = 20;
+            expected[i][0] = 20;
 
         #10;
         check_results("Test 4: Constant values");
@@ -115,8 +141,9 @@ module vect_add_operator_tb;
         // Test 5: n = 0 edge case
         // ------------------------------------------------------------
         n = 0;
-        v1[0] = 5;
-        v2[0] = 5;
+        m = 0;
+        m1[0][0] = 5;
+        m2[0][0] = 5;
         // No expected values (result should not update anything)
         #10;
         $display("\nTest 5: n = 0 (no elements) — PASS by definition");
@@ -125,10 +152,13 @@ module vect_add_operator_tb;
         // Test 6: Maximum size
         // ------------------------------------------------------------
         n = MAX_N;
-        for (i = 0; i < MAX_N; i++) begin
-            v1[i] = 1;
-            v2[i] = 1;
-            expected[i] = 2;
+        m = MAX_M;
+        for (i = 0; i < n; i++) begin
+            for (j = 0; j < m; j++) begin
+                m1[i][j] = i;
+                m2[i][j] = j;
+                expected[i][j] = i + j;
+            end
         end
 
         #10;

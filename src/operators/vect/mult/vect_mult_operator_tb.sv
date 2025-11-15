@@ -7,9 +7,9 @@ module vect_mult_operator_tb;
 
     // DUT interface signals
     reg  [31:0] n;
-    reg  [MAX_N-1:0][31:0] v1;
-    reg  [MAX_N-1:0][31:0] v2;
-    wire [MAX_N-1:0][31:0] result;
+    reg  [31:0] v1 [MAX_N-1:0];
+    reg  [31:0] v2 [MAX_N-1:0];
+    wire [31:0] result [MAX_N-1:0];
 
     // Instantiate DUT
     vect_mult_operator #(
