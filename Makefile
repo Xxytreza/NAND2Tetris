@@ -17,6 +17,7 @@ SRC_DIR := src
 BASIC_DIR := $(SRC_DIR)/basic
 OPERATORS_DIR := $(SRC_DIR)/operators
 CPU_DIR := $(SRC_DIR)/cpus
+UART_DIR := $(SRC_DIR)/uart
 
 # Find all testbenches recursively
 TESTBENCHES := $(shell find $(SRC_DIR) -name "*_tb.sv")
@@ -42,14 +43,14 @@ $(BUILD_DIR) $(WAVES_DIR) $(LOGS_DIR):
 BASIC_SRC := $(shell find $(BASIC_DIR) -name "*.sv" ! -name "*_tb.sv" 2>/dev/null)
 OPERATORS_SRC := $(shell find $(OPERATORS_DIR) -name "*.sv" ! -name "*_tb.sv" 2>/dev/null)
 CPU_SRC := $(shell find $(CPU_DIR) -name "*.sv" ! -name "*_tb.sv" 2>/dev/null)
-
+UART_SRC := $(shell find $(UART_DIR) -name "*.sv" ! -name "*_tb.sv" 2>/dev/null)
 
 $(BUILD_DIR)/%.vvp: $(SRC_DIR)/%.sv | $(BUILD_DIR) $(WAVES_DIR) $(LOGS_DIR)
 	@mkdir -p $(dir $@)
 	@echo "🔧 Compiling $< ..."
 	$(IVERILOG) -o $@ \
 		-DBUILD_DIR=\"$(WAVES_DIR)\" \
-		$(BASIC_SRC) $(OPERATORS_SRC) $(CPU_SRC) $<
+		$(BASIC_SRC) $(OPERATORS_SRC) $(CPU_SRC) $(UART_SRC) $<
 	@echo "✅ Compiled $< to $@"
 
 
