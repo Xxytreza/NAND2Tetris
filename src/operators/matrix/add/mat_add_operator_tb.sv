@@ -33,6 +33,7 @@ module mat_add_operator_tb;
     task check_results;
         input string label;
         begin
+            errors = 0;
             $display("\n%s", label);
             for (i = 0; i < n; i++) begin
                 for (j = 0; j < m; j++) begin
@@ -126,13 +127,16 @@ module mat_add_operator_tb;
         // ------------------------------------------------------------
         // Test 4: Large n, constant values
         // ------------------------------------------------------------
-        n = 3;
-        for (i = 0; i < MAX_N; i++) begin
-            m1[i][0] = 10;
+        n = MAX_N;
+        m = 2;
+        for (i = 0; i < n; i++) begin
+            m1[i][0] = 7;
             m2[i][0] = 10;
+            m1[i][1] = 12;
+            m2[i][1] = 4;
+            expected[i][0] = 17;
+            expected[i][1] = 16;
         end
-        for (i = 0; i < n; i++)
-            expected[i][0] = 20;
 
         #10;
         check_results("Test 4: Constant values");
