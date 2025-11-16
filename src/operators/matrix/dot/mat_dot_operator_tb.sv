@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-module mat_add_operator_tb;
+module mat_dot_operator_tb;
 
     // Parameters
     parameter int MAX_N = 128;
@@ -14,7 +14,7 @@ module mat_add_operator_tb;
     wire [31:0] result [MAX_N-1:0][MAX_M-1:0];
 
     // Instantiate DUT
-    mat_add_operator #(
+    mat_mult_operator #(
         .MAX_N(MAX_N),
         .MAX_M(MAX_M)
     ) dut (
@@ -97,9 +97,10 @@ module mat_add_operator_tb;
         m1[2][0]=1; m2[2][0]=10;
         m1[3][0]=7; m2[3][0]=2;
 
-        for (i = 0; i < n; i++)
-            for (j = 0; j < m; j++)
-                expected[i][j] = m1[i][j] + m2[i][j];
+        expected[0][0] = 6;
+        expected[1][0] = 20;
+        expected[2][0] = 10;
+        expected[3][0] = 14;
 
         #10;
         check_results("Test 1: Simple matrix addition");
@@ -116,7 +117,7 @@ module mat_add_operator_tb;
 
         for (i = 0; i < n; i++)
             for (j = 0; j < m; j++)
-                expected[i][j] = m1[i][j] + m2[i][j];
+                expected[i][j] = m1[i][j] * m2[i][j];
 
         #10;
         check_results("Test 2: With zeros");
@@ -130,12 +131,12 @@ module mat_add_operator_tb;
             for (j = 0; j < m; j++) begin
                 m1[i][j] = i + 1;
                 m2[i][j] = 2;
-                expected[i][j] = m1[i][j] + m2[i][j];
+                expected[i][j] = m1[i][j] * m2[i][j];
             end
         end
 
         #10;
-        check_results("Test 3: Sequence addition");
+        check_results("Test 3: Sequence multiplication");
 
         // ------------------------------------------------------------
         // Test 4: Large n, constant values
@@ -147,8 +148,8 @@ module mat_add_operator_tb;
             m2[i][0] = 10;
             m1[i][1] = 12;
             m2[i][1] = 4;
-            expected[i][0] = 17;
-            expected[i][1] = 16;
+            expected[i][0] = 70;
+            expected[i][1] = 48;
         end
 
         #10;
@@ -174,7 +175,7 @@ module mat_add_operator_tb;
             for (j = 0; j < m; j++) begin
                 m1[i][j] = i;
                 m2[i][j] = j;
-                expected[i][j] = i + j;
+                expected[i][j] = i * j;
             end
         end
 
