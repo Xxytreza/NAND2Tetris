@@ -30,11 +30,11 @@ localparam int COUNT_REG_LEN = 1 + $clog2(CLK_PER_BIT); // Bit width for cycle c
 // STATE MACHINE DEFINITION
 // ============================================
 typedef enum logic [2:0] {
-    IDLE       = 0,    // Waiting for start bit
-    START_BIT  = 1,    // Verifying start bit
-    DATA_BITS  = 2,    // Receiving data bits
-    STOP_BIT   = 3,    // Checking stop bit
-    CLEANUP    = 4     // Cleanup before returning to IDLE
+    IDLE       ,    // Waiting for start bit
+    START_BIT  ,    // Verifying start bit
+    DATA_BITS  ,    // Receiving data bits
+    STOP_BIT   ,    // Checking stop bit
+    CLEANUP         // Cleanup before returning to IDLE
 } state_t;
 
 
