@@ -10,7 +10,7 @@ module vect_mult_operator #(
     always_comb begin 
         for (int i = 0; i < MAX_N; i++) begin
             if (i < n) begin
-                result[i] = v1[i] * v2[i];
+                result[i] = (v1[i] * v2[i]) >> 8;
             end else begin
                 result[i] = 0;
             end

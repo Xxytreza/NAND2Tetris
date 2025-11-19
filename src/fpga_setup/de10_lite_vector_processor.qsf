@@ -1,0 +1,60 @@
+## DE10-Lite Pin Assignments for UART Vector Processor
+## Intel/Altera Quartus Project Settings File
+
+set_global_assignment -name FAMILY "MAX 10"
+set_global_assignment -name DEVICE 10M50DAF484C7G
+set_global_assignment -name TOP_LEVEL_ENTITY uart_vector_processor
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 18.1.0
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "00:00:00 NOVEMBER 15, 2025"
+set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Standard Edition"
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+
+## Clock - 50 MHz
+set_location_assignment PIN_P11 -to clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk
+
+## Reset - KEY0 (active low)
+set_location_assignment PIN_B8 -to resetn
+set_instance_assignment -name IO_STANDARD "3.3 V SCHMITT TRIGGER" -to resetn
+
+## UART Pins - GPIO (Arduino Header)
+## Connect to USB-UART adapter:
+##   FPGA TX (GPIO_0[0]) -> UART adapter RX
+##   FPGA RX (GPIO_0[1]) -> UART adapter TX
+##   GND -> GND
+set_location_assignment PIN_V10 -to uart_tx
+set_location_assignment PIN_W10 -to uart_rx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_tx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_rx
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to uart_rx
+
+## Status LEDs
+set_location_assignment PIN_A8 -to led_busy
+set_location_assignment PIN_A9 -to led_rx_active
+set_location_assignment PIN_A10 -to led_tx_active
+set_location_assignment PIN_B10 -to led_error
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_busy
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_rx_active
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_tx_active
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_error
+
+## Source Files - UART
+set_global_assignment -name SYSTEMVERILOG_FILE ../cpus/uart_vector_processor.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../uart/uart_transmitter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../uart/uart_receiver.sv
+
+## Source Files - Operators
+set_global_assignment -name SYSTEMVERILOG_FILE ../operators/vect/add/vect_add_operator.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../operators/vect/mult/vect_mult_operator.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../operators/vect/dot/vect_dot_operator.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../operators/matrix/add/mat_add_operator.sv
+
+## Timing Constraints
+set_global_assignment -name SDC_FILE ../uart/de10_lite_uart.sdc
+
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

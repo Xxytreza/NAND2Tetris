@@ -1,0 +1,18 @@
+Fitter Status : Successful - Wed Nov 19 00:14:19 2025
+Quartus Prime Version : 25.1std.0 Build 1129 10/21/2025 SC Standard Edition
+Revision Name : de10_lite_vector_processor
+Top-level Entity Name : uart_vector_processor
+Family : MAX 10
+Device : 10M50DAF484C7G
+Timing Models : Final
+Total logic elements : 15,745 / 49,760 ( 32 % )
+    Total combinational functions : 10,600 / 49,760 ( 21 % )
+    Dedicated logic registers : 7,952 / 49,760 ( 16 % )
+Total registers : 7952
+Total pins : 8 / 360 ( 2 % )
+Total virtual pins : 0
+Total memory bits : 0 / 1,677,312 ( 0 % )
+Embedded Multiplier 9-bit elements : 102 / 288 ( 35 % )
+Total PLLs : 0 / 4 ( 0 % )
+UFM blocks : 0 / 1 ( 0 % )
+ADC blocks : 0 / 2 ( 0 % )

@@ -1,0 +1,41 @@
+{
+	"partitions" : [
+		{
+			"name" : "Top",
+			"pins" : [
+				{
+					"name" : "uart_tx",
+					"strict" : false
+				},
+				{
+					"name" : "led_busy",
+					"strict" : false
+				},
+				{
+					"name" : "led_rx_active",
+					"strict" : false
+				},
+				{
+					"name" : "led_tx_active",
+					"strict" : false
+				},
+				{
+					"name" : "led_error",
+					"strict" : false
+				},
+				{
+					"name" : "clk",
+					"strict" : false
+				},
+				{
+					"name" : "resetn",
+					"strict" : false
+				},
+				{
+					"name" : "uart_rx",
+					"strict" : false
+				}
+			]
+		}
+	]
+}

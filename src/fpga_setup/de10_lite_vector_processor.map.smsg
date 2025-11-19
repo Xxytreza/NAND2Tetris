@@ -1,0 +1,1 @@
+Warning (10268): Verilog HDL information at uart_vector_processor.sv(182): always construct contains both blocking and non-blocking assignments File: //wsl.localhost/kali-linux/home/max/NAND2Tetris/src/cpus/uart_vector_processor.sv Line: 182

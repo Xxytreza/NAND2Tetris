@@ -8,11 +8,13 @@ module vect_dot_operator #(
 );
 
     always_comb begin 
-        result = 32'b0;
+        logic [31:0] temp_sum;
+        temp_sum = 32'b0;
         for (int i = 0; i < MAX_N; i++) begin
             if (i < n) begin
-                result += v1[i] * v2[i];
+                temp_sum += v1[i] * v2[i];
             end
         end
+        result = temp_sum >> 16;
     end
 endmodule
