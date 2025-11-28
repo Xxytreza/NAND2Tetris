@@ -1,2 +1,4 @@
-build/
 .venv/
+./src/processors/db/
+./src/processors/incremental_db/
+./src/processors/quartus/*
