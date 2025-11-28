@@ -1,0 +1,63 @@
+## UART Vector Echo - Quartus Prime Project Settings
+
+set_global_assignment -name FAMILY "MAX 10"
+set_global_assignment -name DEVICE 10M50DAF484C7G
+set_global_assignment -name TOP_LEVEL_ENTITY vector_processor
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 25.1.0
+set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Standard Edition"
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+
+## Clock - 50 MHz
+set_location_assignment PIN_P11 -to clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk
+
+## Reset - KEY0 (active low)
+set_location_assignment PIN_B8 -to resetn
+set_instance_assignment -name IO_STANDARD "3.3 V SCHMITT TRIGGER" -to resetn
+
+## UART Pins (GPIO_0)
+set_location_assignment PIN_V10 -to uart_tx
+set_location_assignment PIN_W10 -to uart_rx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_tx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_rx
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to uart_rx
+
+## LEDs (LEDR[7:0]) - Status indicators
+set_location_assignment PIN_A8 -to led[0]
+set_location_assignment PIN_A9 -to led[1]
+set_location_assignment PIN_A10 -to led[2]
+set_location_assignment PIN_B10 -to led[3]
+set_location_assignment PIN_D13 -to led[4]
+set_location_assignment PIN_C13 -to led[5]
+set_location_assignment PIN_E14 -to led[6]
+set_location_assignment PIN_D14 -to led[7]
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[7]
+
+## Source Files
+set_global_assignment -name SYSTEMVERILOG_FILE vector_processor.sv
+set_global_assignment -name VERILOG_FILE ../uart/uart_rx.v
+set_global_assignment -name VERILOG_FILE ../uart/uart_tx.v
+set_global_assignment -name SYSTEMVERILOG_FILE vect/add/vect_add_operator.sv
+
+## Output Directory
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY quartus
+
+## Timing Constraints
+set_global_assignment -name SDC_FILE vector_processor.sdc
+
+## Project Settings
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+
+
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

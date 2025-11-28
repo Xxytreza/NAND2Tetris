@@ -78,6 +78,10 @@ view:
 
 clean:
 	rm -rf $(BUILD_DIR)
-	@echo "🧹 Cleaned all build artifacts"
+	rm -rf src/fpga_setup/db src/fpga_setup/incremental_db src/fpga_setup/output_files
+	rm -f src/fpga_setup/*.rpt src/fpga_setup/*.summary src/fpga_setup/*.sof src/fpga_setup/*.pof
+	rm -f src/fpga_setup/*.pin src/fpga_setup/*.jdi src/fpga_setup/*.sld src/fpga_setup/*.done
+	rm -f src/fpga_setup/*.smsg src/fpga_setup/log.txt
+	@echo "🧹 Cleaned all build artifacts and Quartus files"
 
 .PHONY: all test clean view

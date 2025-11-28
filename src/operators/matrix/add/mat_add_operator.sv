@@ -12,7 +12,12 @@ module mat_add_operator #(
     always_comb begin
         for (i=0; i < MAX_N; i=i+1) begin
             for (j=0; j < MAX_M; j=j+1) begin
-                result[i][j] = m1[i][j] + m2[i][j];
+                // Only compute within bounds
+                if (i < n && j < m) begin
+                    result[i][j] = m1[i][j] + m2[i][j];
+                end else begin
+                    result[i][j] = 32'd0;
+                end
             end
         end
     end
