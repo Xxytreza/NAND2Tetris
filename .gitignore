@@ -3,3 +3,5 @@ src/processors/db/
 src/processors/incremental_db/
 src/processors/quartus/matrix_processor.*
 src/processors/quartus/vector_processor.*
+src/processors/fpga_interface/__pycache__/
+src/processors/fpga_interface/__pycache__/*
