@@ -28,7 +28,7 @@ module vector_processor (
     parameter CLK_HZ = 50_000_000;
     parameter BIT_RATE = 115200;
     parameter PAYLOAD_BITS = 8;
-    parameter MAX_VECTOR_SIZE = 128;
+    parameter MAX_VECTOR_SIZE = 1024;
 
     // UART RX signals
     wire [PAYLOAD_BITS-1:0] uart_rx_data;
@@ -41,40 +41,48 @@ module vector_processor (
     reg uart_tx_en;
 
     // Vector storage
-    reg [7:0] vector1_size;
+    reg [15:0] vector1_size;
     reg [31:0] vector1_data [0:MAX_VECTOR_SIZE-1];
-    reg [7:0] vector2_size;
+    reg [15:0] vector2_size;
     reg [31:0] vector2_data [0:MAX_VECTOR_SIZE-1];
     
     // Result vector from addition
     reg [31:0] result_data [0:MAX_VECTOR_SIZE-1];
-    reg [7:0] result_size;
+    reg [15:0] result_size;
     
     // Operation code
     reg [7:0] op_code;
 
     // State machine
-    typedef enum logic [3:0] {
+    typedef enum logic [4:0] {
         IDLE,           // Wait for Op Code
-        RECV_V1_SIZE,   // Wait for Vector 1 Size
+        RECV_V1_SIZE_LO,
+        RECV_V1_SIZE_HI,
         RECV_VECTOR1,
-        RECV_V2_SIZE,   // Wait for Vector 2 Size
+        RECV_V2_SIZE_LO,
+        RECV_V2_SIZE_HI,
         RECV_VECTOR2,
-        COMPUTE,
-        SEND_SIZE,
+        COMPUTE_FETCH,
+        COMPUTE_EXEC,
+        SEND_SIZE_LO,
+        SEND_SIZE_HI,
+        SEND_RESULT_FETCH,
         SEND_RESULT
     } state_t;
     
     state_t state, next_state;
     
     // Counters
-    reg [7:0] element_count;      // Which element we're on (0 to vector_size-1)
+    reg [15:0] element_count;      // Which element we're on (0 to vector_size-1)
     reg [1:0] byte_count;         // Which byte of current element (0-3)
-    reg [7:0] total_bytes_sent;   // Total bytes transmitted
+    reg [15:0] total_bytes_sent;   // Total bytes transmitted
     
     // Temporary storage for building 32-bit elements
     reg [31:0] temp_element;
     reg [31:0] dot_prod_acc;
+    
+    // Pipeline registers for RAM access
+    reg [31:0] vec1_q, vec2_q, result_q;
     
     // LED status register
     reg [7:0] led_reg;
@@ -109,6 +117,13 @@ module vector_processor (
         .uart_tx_data(uart_tx_data)
     );
 
+    // RAM Read Logic
+    always_ff @(posedge clk) begin
+        vec1_q <= vector1_data[element_count];
+        vec2_q <= vector2_data[element_count];
+        result_q <= result_data[element_count];
+    end
+
     // State machine - next state logic
     always_comb begin
         next_state = state;
@@ -116,57 +131,82 @@ module vector_processor (
         case (state)
             IDLE: begin
                 if (uart_rx_valid)
-                    next_state = RECV_V1_SIZE;
+                    next_state = RECV_V1_SIZE_LO;
             end
 
-            RECV_V1_SIZE: begin
+            RECV_V1_SIZE_LO: begin
+                if (uart_rx_valid)
+                    next_state = RECV_V1_SIZE_HI;
+            end
+
+            RECV_V1_SIZE_HI: begin
                 if (uart_rx_valid)
                     next_state = RECV_VECTOR1;
             end
             
             RECV_VECTOR1: begin
                 if (uart_rx_valid && byte_count == 3 && element_count == vector1_size - 1)
-                    next_state = RECV_V2_SIZE;
+                    next_state = RECV_V2_SIZE_LO;
             end
 
-            RECV_V2_SIZE: begin
+            RECV_V2_SIZE_LO: begin
+                if (uart_rx_valid)
+                    next_state = RECV_V2_SIZE_HI;
+            end
+
+            RECV_V2_SIZE_HI: begin
                 if (uart_rx_valid)
                     next_state = RECV_VECTOR2;
             end
             
             RECV_VECTOR2: begin
                 if (uart_rx_valid && byte_count == 3 && element_count == vector2_size - 1)
-                    next_state = COMPUTE;
+                    next_state = COMPUTE_FETCH;
             end
             
-            COMPUTE: begin
-                if (op_code == 8'd0) begin
-                    if (element_count >= result_size)
-                        next_state = SEND_SIZE;
-                    else
-                        next_state = COMPUTE;
-                end else if (op_code == 8'd1) begin
-                    if (element_count >= result_size)
-                        next_state = SEND_SIZE;
-                    else
-                        next_state = COMPUTE;
-                end else if (op_code == 8'd2) begin
-                    if (element_count >= result_size)
-                        next_state = SEND_SIZE;
-                    else
-                        next_state = COMPUTE;
-                end else
-                    next_state = SEND_SIZE;
+            COMPUTE_FETCH: begin
+                next_state = COMPUTE_EXEC;
             end
 
-            SEND_SIZE: begin
+            COMPUTE_EXEC: begin
+                if (op_code == 8'd0 || op_code == 8'd2) begin
+                    if (element_count >= result_size - 1) // -1 because we increment in this state
+                        next_state = SEND_SIZE_LO;
+                    else
+                        next_state = COMPUTE_FETCH;
+                end else if (op_code == 8'd1) begin
+                    if (element_count >= result_size - 1)
+                        next_state = SEND_SIZE_LO;
+                    else
+                        next_state = COMPUTE_FETCH;
+                end else
+                    next_state = SEND_SIZE_LO;
+            end
+
+            SEND_SIZE_LO: begin
                 if (uart_tx_en)
-                    next_state = SEND_RESULT;
+                    next_state = SEND_SIZE_HI;
+            end
+
+            SEND_SIZE_HI: begin
+                if (uart_tx_en)
+                    next_state = SEND_RESULT_FETCH;
+            end
+            
+            SEND_RESULT_FETCH: begin
+                next_state = SEND_RESULT;
             end
             
             SEND_RESULT: begin
-                if (!uart_tx_busy && total_bytes_sent > (result_size * 4))
+                if (!uart_tx_busy && !uart_tx_en && total_bytes_sent <= (result_size * 4)) begin
+                    // If we just finished a word (byte_count was 3), we need to fetch next
+                    if (byte_count == 3)
+                         next_state = SEND_RESULT_FETCH;
+                    else
+                         next_state = SEND_RESULT;
+                end else if (!uart_tx_busy && total_bytes_sent > (result_size * 4)) begin
                     next_state = IDLE;
+                end
             end
             
             default: next_state = IDLE;
@@ -185,23 +225,23 @@ module vector_processor (
     always_ff @(posedge clk or negedge resetn) begin
         if (!resetn) begin
             op_code <= 8'd0;
-            vector1_size <= 8'd0;
-            vector2_size <= 8'd0;
-            result_size <= 8'd0;
-            element_count <= 8'd0;
+            vector1_size <= 16'd0;
+            vector2_size <= 16'd0;
+            result_size <= 16'd0;
+            element_count <= 16'd0;
             byte_count <= 2'd0;
             temp_element <= 32'd0;
             uart_tx_data <= 8'd0;
             uart_tx_en <= 1'b0;
-            total_bytes_sent <= 8'd0;
+            total_bytes_sent <= 16'd0;
             led_reg <= 8'h00;
             
-            // Clear vector storage
-            for (int i = 0; i < MAX_VECTOR_SIZE; i++) begin
-                vector1_data[i] <= 32'd0;
-                vector2_data[i] <= 32'd0;
-                result_data[i] <= 32'd0;
-            end
+            // Clear vector storage - REMOVED to allow BRAM inference
+            // for (int i = 0; i < MAX_VECTOR_SIZE; i++) begin
+            //     vector1_data[i] <= 32'd0;
+            //     vector2_data[i] <= 32'd0;
+            //     result_data[i] <= 32'd0;
+            // end
                 
         end else begin
             uart_tx_en <= 1'b0;  // Default: no transmission
@@ -209,26 +249,32 @@ module vector_processor (
             case (state)
                 IDLE: begin
                     byte_count <= 2'd0;
-                    total_bytes_sent <= 8'd0;
+                    total_bytes_sent <= 16'd0;
                     temp_element <= 32'd0;
                     dot_prod_acc <= 32'd0;
                     
                     if (uart_rx_valid) begin
                         op_code <= uart_rx_data;
                         // Reset sizes for new transaction
-                        vector1_size <= 8'd0;
-                        vector2_size <= 8'd0;
-                        result_size <= 8'd0;
+                        vector1_size <= 16'd0;
+                        vector2_size <= 16'd0;
+                        result_size <= 16'd0;
                         led_reg <= 8'h01; // Indicate Op Code received
                     end else begin
                         led_reg <= 8'h00;
                     end
                 end
 
-                RECV_V1_SIZE: begin
+                RECV_V1_SIZE_LO: begin
                     if (uart_rx_valid) begin
-                        vector1_size <= uart_rx_data;
-                        element_count <= 8'd0;
+                        vector1_size[7:0] <= uart_rx_data;
+                    end
+                end
+
+                RECV_V1_SIZE_HI: begin
+                    if (uart_rx_valid) begin
+                        vector1_size[15:8] <= uart_rx_data;
+                        element_count <= 16'd0;
                         byte_count <= 2'd0;
                         led_reg <= {4'h0, uart_rx_data[3:0]};
                     end
@@ -249,7 +295,7 @@ module vector_processor (
                             vector1_data[element_count] <= {uart_rx_data, temp_element[23:0]};
                             
                             if (element_count == vector1_size - 1) begin
-                                element_count <= 8'd0; // Reset for next state
+                                element_count <= 16'd0; // Reset for next state
                             end else begin
                                 element_count <= element_count + 1'b1;
                             end
@@ -261,12 +307,19 @@ module vector_processor (
                     end
                 end
 
-                RECV_V2_SIZE: begin
+                RECV_V2_SIZE_LO: begin
                     if (uart_rx_valid) begin
-                        vector2_size <= uart_rx_data;
+                        vector2_size[7:0] <= uart_rx_data;
+                    end
+                end
+
+                RECV_V2_SIZE_HI: begin
+                    if (uart_rx_valid) begin
+                        vector2_size[15:8] <= uart_rx_data;
                         // Calculate result size as minimum of the two
-                        result_size <= (uart_rx_data < vector1_size) ? uart_rx_data : vector1_size;
-                        element_count <= 8'd0;
+                        // Note: We need to use the full 16-bit size here
+                        result_size <= ({uart_rx_data, vector2_size[7:0]} < vector1_size) ? {uart_rx_data, vector2_size[7:0]} : vector1_size;
+                        element_count <= 16'd0;
                         byte_count <= 2'd0;
                         led_reg <= {4'hF, uart_rx_data[3:0]};
                     end
@@ -287,7 +340,7 @@ module vector_processor (
                             vector2_data[element_count] <= {uart_rx_data, temp_element[23:0]};
                             
                             if (element_count == vector2_size - 1) begin
-                                element_count <= 8'd0; // Reset for COMPUTE
+                                element_count <= 16'd0; // Reset for COMPUTE
                             end else begin
                                 element_count <= element_count + 1'b1;
                             end
@@ -299,55 +352,66 @@ module vector_processor (
                     end
                 end
                 
-                COMPUTE: begin
+                COMPUTE_FETCH: begin
+                    // Wait for RAM read
+                end
+
+                COMPUTE_EXEC: begin
                     if (op_code == 8'd0) begin
                         // Perform vector addition iteratively
                         if (element_count < result_size) begin
-                            result_data[element_count] <= vector1_data[element_count] + vector2_data[element_count];
+                            result_data[element_count] <= vec1_q + vec2_q;
                             element_count <= element_count + 1'b1;
-                        end else begin
-                            // Done
                         end
                     end else if (op_code == 8'd1) begin
                         // Perform dot product iteratively
                         if (element_count < result_size) begin
-                            dot_prod_acc <= dot_prod_acc + (vector1_data[element_count] * vector2_data[element_count]);
+                            dot_prod_acc <= dot_prod_acc + (vec1_q * vec2_q);
                             element_count <= element_count + 1'b1;
                         end else begin
                             result_data[0] <= dot_prod_acc;
-                            result_size <= 8'd1;
+                            result_size <= 16'd1;
                         end
                     end else if (op_code == 8'd2) begin
                         // Perform vector multiplication iteratively
                         if (element_count < result_size) begin
-                            result_data[element_count] <= vector1_data[element_count] * vector2_data[element_count];
+                            result_data[element_count] <= vec1_q * vec2_q;
                             element_count <= element_count + 1'b1;
-                        end else begin
-                            // Done
                         end
                     end
                     led_reg <= 8'hCC;  // Computing pattern
                 end
                 
-                SEND_SIZE: begin
+                SEND_SIZE_LO: begin
                     if (!uart_tx_busy) begin
-                        uart_tx_data <= result_size;
+                        uart_tx_data <= result_size[7:0];
                         uart_tx_en <= 1'b1;
-                        element_count <= 8'd0;
+                    end
+                end
+
+                SEND_SIZE_HI: begin
+                    if (!uart_tx_busy) begin
+                        uart_tx_data <= result_size[15:8];
+                        uart_tx_en <= 1'b1;
+                        element_count <= 16'd0;
                         byte_count <= 2'd0;
-                        total_bytes_sent <= 8'd1;
+                        total_bytes_sent <= 16'd1;
                         led_reg <= 8'hFF;  // All LEDs on during transmission
                     end
+                end
+                
+                SEND_RESULT_FETCH: begin
+                    // Wait for RAM read
                 end
                 
                 SEND_RESULT: begin
                     if (!uart_tx_busy && !uart_tx_en && total_bytes_sent <= (result_size * 4)) begin
                         // Send current byte from result
                         case (byte_count)
-                            2'd0: uart_tx_data <= result_data[element_count][7:0];
-                            2'd1: uart_tx_data <= result_data[element_count][15:8];
-                            2'd2: uart_tx_data <= result_data[element_count][23:16];
-                            2'd3: uart_tx_data <= result_data[element_count][31:24];
+                            2'd0: uart_tx_data <= result_q[7:0];
+                            2'd1: uart_tx_data <= result_q[15:8];
+                            2'd2: uart_tx_data <= result_q[23:16];
+                            2'd3: uart_tx_data <= result_q[31:24];
                         endcase
                         
                         uart_tx_en <= 1'b1;

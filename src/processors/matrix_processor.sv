@@ -30,7 +30,7 @@ module matrix_processor (
     parameter CLK_HZ = 50_000_000;
     parameter BIT_RATE = 115200;
     parameter PAYLOAD_BITS = 8;
-    parameter MAX_ELEMENTS = 32; // Max total elements (e.g. 4x8 or 5x6)
+    parameter MAX_ELEMENTS = 1024; // Max total elements (e.g. 32x32)
 
     // UART RX signals
     wire [PAYLOAD_BITS-1:0] uart_rx_data;
@@ -63,9 +63,11 @@ module matrix_processor (
         RECV_M2_ROWS,
         RECV_M2_COLS,
         RECV_M2_DATA,
-        COMPUTE,
+        COMPUTE_FETCH,
+        COMPUTE_EXEC,
         COMPUTE_MUL_INIT,
         COMPUTE_MUL_PRE,
+        COMPUTE_MUL_WAIT,
         COMPUTE_MUL_ACC,
         COMPUTE_MUL_SAVE,
         PRE_SEND,
@@ -73,6 +75,7 @@ module matrix_processor (
         WAIT_ROWS,
         SEND_COLS,
         WAIT_COLS,
+        SEND_DATA_FETCH,
         SEND_DATA,
         WAIT_DATA
     } state_t;
@@ -80,18 +83,21 @@ module matrix_processor (
     state_t state, next_state;
     
     // Counters
-    reg [7:0] element_count;      // Which element we're on
-    reg [7:0] total_elements;     // Total elements to receive/send
+    reg [15:0] element_count;      // Which element we're on
+    reg [15:0] total_elements;     // Total elements to receive/send
     reg [1:0] byte_count;         // Which byte of current element (0-3)
-    reg [7:0] total_bytes_sent;   // Total bytes transmitted
+    reg [15:0] total_bytes_sent;   // Total bytes transmitted
     
     // Temporary storage
     reg [31:0] temp_element;
     
+    // Pipeline registers for RAM access
+    reg [31:0] mat1_q, mat2_q, result_q;
+    
     // Multiplication counters
     reg [7:0] mul_i, mul_j, mul_k;
     reg [31:0] mul_acc;
-    reg [7:0] addr_a, addr_b, addr_a_start, addr_b_start;
+    reg [15:0] addr_a, addr_b, addr_a_start, addr_b_start;
     
     // LED status register
     reg [7:0] led_reg;
@@ -125,6 +131,18 @@ module matrix_processor (
         .uart_tx_busy(uart_tx_busy),
         .uart_tx_data(uart_tx_data)
     );
+
+    // RAM Read Logic
+    always_ff @(posedge clk) begin
+        if (state == COMPUTE_MUL_PRE || state == COMPUTE_MUL_WAIT || state == COMPUTE_MUL_ACC) begin
+            mat1_q <= mat1_data[addr_a];
+            mat2_q <= mat2_data[addr_b];
+        end else begin
+            mat1_q <= mat1_data[element_count];
+            mat2_q <= mat2_data[element_count];
+        end
+        result_q <= result_data[element_count];
+    end
 
     // State machine - next state logic
     always_comb begin
@@ -166,26 +184,32 @@ module matrix_processor (
                     if (op_code == 8'd2)
                         next_state = COMPUTE_MUL_INIT;
                     else
-                        next_state = COMPUTE;
+                        next_state = COMPUTE_FETCH;
                 end
             end
             
-            COMPUTE: begin
-                if (element_count >= total_elements)
+            COMPUTE_FETCH: begin
+                next_state = COMPUTE_EXEC;
+            end
+
+            COMPUTE_EXEC: begin
+                if (element_count >= total_elements - 1) // -1 because we increment in this state
                     next_state = PRE_SEND;
                 else
-                    next_state = COMPUTE;
+                    next_state = COMPUTE_FETCH;
             end
             
             COMPUTE_MUL_INIT: next_state = COMPUTE_MUL_PRE;
             
-            COMPUTE_MUL_PRE: next_state = COMPUTE_MUL_ACC;
+            COMPUTE_MUL_PRE: next_state = COMPUTE_MUL_WAIT;
+            
+            COMPUTE_MUL_WAIT: next_state = COMPUTE_MUL_ACC;
 
             COMPUTE_MUL_ACC: begin
                 if (mul_k == mat1_cols - 1)
                     next_state = COMPUTE_MUL_SAVE;
                 else
-                    next_state = COMPUTE_MUL_ACC;
+                    next_state = COMPUTE_MUL_WAIT;
             end
 
             COMPUTE_MUL_SAVE: begin
@@ -215,9 +239,13 @@ module matrix_processor (
             
             WAIT_COLS: begin
                 if (!uart_tx_busy && !uart_tx_en)
-                    next_state = SEND_DATA;
+                    next_state = SEND_DATA_FETCH;
             end
             
+            SEND_DATA_FETCH: begin
+                next_state = SEND_DATA;
+            end
+
             SEND_DATA: begin
                 next_state = WAIT_DATA;
             end
@@ -226,8 +254,13 @@ module matrix_processor (
                 if (!uart_tx_busy && !uart_tx_en) begin
                     if (total_bytes_sent > (mat1_rows * mat1_cols * 4))
                         next_state = IDLE;
-                    else
-                        next_state = SEND_DATA;
+                    else begin
+                        // If we just finished a word (byte_count wrapped to 0), we need to fetch next
+                        if (byte_count == 0)
+                             next_state = SEND_DATA_FETCH;
+                        else
+                             next_state = SEND_DATA;
+                    end
                 end
             end
             
@@ -249,20 +282,20 @@ module matrix_processor (
             op_code <= 8'd0;
             mat1_rows <= 8'd0; mat1_cols <= 8'd0;
             mat2_rows <= 8'd0; mat2_cols <= 8'd0;
-            element_count <= 8'd0;
-            total_elements <= 8'd0;
+            element_count <= 16'd0;
+            total_elements <= 16'd0;
             byte_count <= 2'd0;
             temp_element <= 32'd0;
             uart_tx_data <= 8'd0;
             uart_tx_en <= 1'b0;
-            total_bytes_sent <= 8'd0;
+            total_bytes_sent <= 16'd0;
             led_reg <= 8'h00;
             
-            // Clear storage
-            for (int i = 0; i < MAX_ELEMENTS; i++) begin
-                mat1_data[i] <= 32'd0;
-                mat2_data[i] <= 32'd0;
-            end
+            // Clear storage - REMOVED to allow BRAM inference
+            // for (int i = 0; i < MAX_ELEMENTS; i++) begin
+            //     mat1_data[i] <= 32'd0;
+            //     mat2_data[i] <= 32'd0;
+            // end
                 
         end else begin
             uart_tx_en <= 1'b0;  // Default: no transmission
@@ -270,7 +303,7 @@ module matrix_processor (
             case (state)
                 IDLE: begin
                     byte_count <= 2'd0;
-                    total_bytes_sent <= 8'd0;
+                    total_bytes_sent <= 16'd0;
                     temp_element <= 32'd0;
                     
                     if (uart_rx_valid) begin
@@ -290,8 +323,8 @@ module matrix_processor (
                 RECV_M1_COLS: begin
                     if (uart_rx_valid) begin
                         mat1_cols <= uart_rx_data;
-                        total_elements <= mat1_rows * uart_rx_data; // Calculate total elements
-                        element_count <= 8'd0;
+                        total_elements <= {8'd0, mat1_rows} * {8'd0, uart_rx_data}; // Calculate total elements (16-bit)
+                        element_count <= 16'd0;
                         byte_count <= 2'd0;
                         led_reg <= {4'h0, uart_rx_data[3:0]};
                     end
@@ -309,7 +342,7 @@ module matrix_processor (
                         if (byte_count == 2'd3) begin
                             mat1_data[element_count] <= {uart_rx_data, temp_element[23:0]};
                             if (element_count == total_elements - 1) begin
-                                element_count <= 8'd0;
+                                element_count <= 16'd0;
                             end else begin
                                 element_count <= element_count + 1'b1;
                             end
@@ -329,8 +362,8 @@ module matrix_processor (
                 RECV_M2_COLS: begin
                     if (uart_rx_valid) begin
                         mat2_cols <= uart_rx_data;
-                        total_elements <= mat2_rows * uart_rx_data;
-                        element_count <= 8'd0;
+                        total_elements <= {8'd0, mat2_rows} * {8'd0, uart_rx_data};
+                        element_count <= 16'd0;
                         byte_count <= 2'd0;
                         led_reg <= {4'hF, uart_rx_data[3:0]};
                     end
@@ -348,7 +381,7 @@ module matrix_processor (
                         if (byte_count == 2'd3) begin
                             mat2_data[element_count] <= {uart_rx_data, temp_element[23:0]};
                             if (element_count == total_elements - 1) begin
-                                element_count <= 8'd0; // Reset for COMPUTE
+                                element_count <= 16'd0; // Reset for COMPUTE
                             end else begin
                                 element_count <= element_count + 1'b1;
                             end
@@ -359,16 +392,20 @@ module matrix_processor (
                     end
                 end
                 
-                COMPUTE: begin
+                COMPUTE_FETCH: begin
+                    // Wait for RAM read
+                end
+
+                COMPUTE_EXEC: begin
                     if (op_code == 8'd0) begin
                         // Addition
-                        result_data[element_count] <= mat1_data[element_count] + mat2_data[element_count];
+                        result_data[element_count] <= mat1_q + mat2_q;
                     end else if (op_code == 8'd1) begin
                         // Element-wise Multiplication
-                        result_data[element_count] <= mat1_data[element_count] * mat2_data[element_count];
+                        result_data[element_count] <= mat1_q * mat2_q;
                     end else begin
                         // Default echo mat1
-                        result_data[element_count] <= mat1_data[element_count];
+                        result_data[element_count] <= mat1_q;
                     end
                     
                     element_count <= element_count + 1'b1;
@@ -377,9 +414,9 @@ module matrix_processor (
                 COMPUTE_MUL_INIT: begin
                     mul_i <= 8'd0;
                     mul_j <= 8'd0;
-                    addr_a_start <= 8'd0;
-                    addr_b_start <= 8'd0;
-                    element_count <= 8'd0; // Used for result index
+                    addr_a_start <= 16'd0;
+                    addr_b_start <= 16'd0;
+                    element_count <= 16'd0; // Used for result index
                 end
                 
                 COMPUTE_MUL_PRE: begin
@@ -391,7 +428,7 @@ module matrix_processor (
 
                 COMPUTE_MUL_ACC: begin
                     // acc += A[addr_a] * B[addr_b]
-                    mul_acc <= mul_acc + mat1_data[addr_a] * mat2_data[addr_b];
+                    mul_acc <= mul_acc + mat1_q * mat2_q;
                     
                     addr_a <= addr_a + 1'b1;
                     addr_b <= addr_b + mat2_cols;
@@ -409,7 +446,7 @@ module matrix_processor (
                     
                     if (mul_j == mat2_cols - 1) begin
                         mul_j <= 8'd0;
-                        addr_b_start <= 8'd0;
+                        addr_b_start <= 16'd0;
                         
                         if (mul_i == mat1_rows - 1) begin
                             // Finished all
@@ -436,22 +473,26 @@ module matrix_processor (
                 SEND_COLS: begin
                     uart_tx_data <= mat1_cols;
                     uart_tx_en <= 1'b1;
-                    element_count <= 8'd0;
+                    element_count <= 16'd0;
                     byte_count <= 2'd0;
-                    total_bytes_sent <= 8'd1;
+                    total_bytes_sent <= 16'd1;
                 end
                 
                 WAIT_COLS: begin
                     // Wait
                 end
                 
+                SEND_DATA_FETCH: begin
+                    // Wait for RAM read
+                end
+                
                 SEND_DATA: begin
                     if (total_bytes_sent <= (mat1_rows * mat1_cols * 4)) begin
                         case (byte_count)
-                            2'd0: uart_tx_data <= result_data[element_count][7:0];
-                            2'd1: uart_tx_data <= result_data[element_count][15:8];
-                            2'd2: uart_tx_data <= result_data[element_count][23:16];
-                            2'd3: uart_tx_data <= result_data[element_count][31:24];
+                            2'd0: uart_tx_data <= result_q[7:0];
+                            2'd1: uart_tx_data <= result_q[15:8];
+                            2'd2: uart_tx_data <= result_q[23:16];
+                            2'd3: uart_tx_data <= result_q[31:24];
                         endcase
                         uart_tx_en <= 1'b1;
                         

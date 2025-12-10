@@ -65,7 +65,7 @@ class MatrixProcessor:
                 self.baudrate,
                 timeout=self.timeout
             )
-            time.sleep(1)  # Wait for board to stabilize
+            time.sleep(0.1)
             
     def disconnect(self):
         """Close serial connection."""
@@ -221,7 +221,6 @@ class MatrixProcessor:
         # Clear buffers
         self._serial.reset_input_buffer()
         self._serial.reset_output_buffer()
-        time.sleep(0.1)
         
         hw_op_code = operation
         if operation == Operation.DOT:
@@ -230,18 +229,19 @@ class MatrixProcessor:
             hw_op_code = 1  # Send 1 for Element-wise Multiplication
             
         self._serial.write(bytes([int(hw_op_code)]))
-        time.sleep(0.05)
+        self._serial.flush()
         
         # Send matrices
         self._send_matrix(matrix1)
-        time.sleep(0.05)
         self._send_matrix(matrix2)
         
-        # Wait for processing (longer for matrix multiplication)
         total_elements = (rows1 * cols1) + (rows2 * cols2)
-        wait_time = 0.2 + total_elements * 0.01
         if operation == Operation.DOT:
-            wait_time += 0.3  # Extra time for iterative multiplication
+            # Matrix multiplication needs more compute time
+            wait_time = 0.01 + total_elements * 0.0001
+        else:
+            # Element-wise operations are fast
+            wait_time = 0.001 + total_elements * 0.00001
         time.sleep(wait_time)
         
         # Receive result
