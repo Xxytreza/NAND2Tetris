@@ -93,8 +93,7 @@ class VectorProcessor:
     def _send_vector(self, vector: List[int]):
         """Send a vector via UART."""
         size = len(vector)
-        # Send size as 2 bytes (unsigned short, little-endian)
-        self._serial.write(struct.pack('<H', size))
+        self._serial.write(bytes([size]))
         
         for val in vector:
             packed = struct.pack('<i', val)
@@ -104,12 +103,11 @@ class VectorProcessor:
         
     def _receive_vector(self) -> List[int]:
         """Receive a vector via UART."""
-        # Read size (2 bytes)
-        size_bytes = self._serial.read(2)
-        if len(size_bytes) != 2:
+        size_byte = self._serial.read(1)
+        if len(size_byte) != 1:
             raise IOError("Failed to receive result size")
         
-        size = struct.unpack('<H', size_bytes)[0]
+        size = size_byte[0]
         
         result = []
         for i in range(size):

@@ -32,7 +32,8 @@ class MatrixProcessor:
     10. Receive result elements (rows*cols * 4 bytes, little-endian, row-major)
     """
     
-    MAX_ELEMENTS = 1024  # Maximum total elements (e.g., 32x32)
+    MAX_ELEMENTS = 1024  # Maximum elements per FPGA operation (32x32)
+    TILE_SIZE = 32  # Process matrices in 32x32 tiles
     
     def __init__(self, port: str, baudrate: int = 115200, timeout: float = 5.0):
         """
@@ -76,7 +77,7 @@ class MatrixProcessor:
         """Check if connected to FPGA."""
         return self._serial is not None and self._serial.is_open
     
-    def _validate_matrix(self, matrix: List[List[int]], name: str = "Matrix"):
+    def _validate_matrix(self, matrix: List[List[int]], name: str = "Matrix", check_size: bool = False):
         """Validate matrix size and format."""
         if not isinstance(matrix, (list, tuple)):
             raise TypeError(f"{name} must be a list or tuple")
@@ -104,13 +105,14 @@ class MatrixProcessor:
                         f"{name}[{i}][{j}] must be an integer, got {type(val)}"
                     )
         
-        # Check total size
-        total = rows * cols
-        if total > self.MAX_ELEMENTS:
-            raise ValueError(
-                f"{name} size {rows}x{cols} ({total} elements) "
-                f"exceeds maximum {self.MAX_ELEMENTS} elements"
-            )
+        # Check total size only if requested (for tile operations)
+        if check_size:
+            total = rows * cols
+            if total > self.MAX_ELEMENTS:
+                raise ValueError(
+                    f"{name} size {rows}x{cols} ({total} elements) "
+                    f"exceeds maximum {self.MAX_ELEMENTS} elements"
+                )
             
         return rows, cols
     
@@ -172,6 +174,54 @@ class MatrixProcessor:
         # Convert to 2D matrix
         matrix = self._unflatten_matrix(flat, rows, cols)
         return matrix
+    def _execute_tile(
+        self,
+        operation: Operation,
+        matrix1: List[List[int]],
+        matrix2: List[List[int]]
+    ) -> List[List[int]]:
+        """
+        Execute an operation on two matrices (must fit in FPGA memory).
+        Internal method - use execute() for automatic tiling.
+        """
+        if not self.is_connected():
+            raise IOError("Not connected to FPGA. Call connect() first.")
+        
+        # Validate tile sizes
+        self._validate_matrix(matrix1, "Tile1", check_size=True)
+        self._validate_matrix(matrix2, "Tile2", check_size=True)
+        
+        # Clear buffers
+        self._serial.reset_input_buffer()
+        self._serial.reset_output_buffer()
+        self._serial.reset_output_buffer()
+        
+        hw_op_code = operation
+        if operation == Operation.DOT:
+            hw_op_code = 2
+        elif operation == Operation.MULTIPLY:
+            hw_op_code = 1
+            
+        self._serial.write(bytes([int(hw_op_code)]))
+        self._serial.flush()
+        
+        # Send matrices
+        self._send_matrix(matrix1)
+        self._send_matrix(matrix2)
+        
+        rows1, cols1 = len(matrix1), len(matrix1[0])
+        rows2, cols2 = len(matrix2), len(matrix2[0])
+        total_elements = (rows1 * cols1) + (rows2 * cols2)
+        
+        if operation == Operation.DOT:
+            wait_time = 0.01 + total_elements * 0.0001
+        else:
+            wait_time = 0.001 + total_elements * 0.00001
+        time.sleep(wait_time)
+        
+        # Receive result
+        result = self._receive_matrix()
+        return result
     
     def execute(
         self,
@@ -180,7 +230,7 @@ class MatrixProcessor:
         matrix2: List[List[int]]
     ) -> List[List[int]]:
         """
-        Execute an operation on two matrices.
+        Execute an operation on two matrices with automatic tiling for large matrices.
         
         Args:
             operation: Operation to perform (ADD, DOT, or MULTIPLY)
@@ -218,34 +268,77 @@ class MatrixProcessor:
                     f"Got {rows1}x{cols1} and {rows2}x{cols2}"
                 )
         
-        # Clear buffers
-        self._serial.reset_input_buffer()
-        self._serial.reset_output_buffer()
+        # Check if tiling is needed
+        if rows1 <= self.TILE_SIZE and cols1 <= self.TILE_SIZE and rows2 <= self.TILE_SIZE and cols2 <= self.TILE_SIZE:
+            # Small enough - process directly
+            return self._execute_tile(operation, matrix1, matrix2)
         
-        hw_op_code = operation
-        if operation == Operation.DOT:
-            hw_op_code = 2  # Send 2 for Matrix Multiplication
-        elif operation == Operation.MULTIPLY:
-            hw_op_code = 1  # Send 1 for Element-wise Multiplication
-            
-        self._serial.write(bytes([int(hw_op_code)]))
-        self._serial.flush()
+        # Large matrices - use tiling
+        if operation in [Operation.ADD, Operation.MULTIPLY]:
+            return self._execute_tiled_elementwise(operation, matrix1, matrix2)
+        else:  # DOT
+            return self._execute_tiled_matmul(matrix1, matrix2)
+    
+    def _execute_tiled_elementwise(
+        self,
+        operation: Operation,
+        matrix1: List[List[int]],
+        matrix2: List[List[int]]
+    ) -> List[List[int]]:
+        """Execute element-wise operation using tiling."""
+        rows, cols = len(matrix1), len(matrix1[0])
+        result = [[0] * cols for _ in range(rows)]
         
-        # Send matrices
-        self._send_matrix(matrix1)
-        self._send_matrix(matrix2)
+        # Process in tiles
+        for i in range(0, rows, self.TILE_SIZE):
+            for j in range(0, cols, self.TILE_SIZE):
+                # Extract tile
+                tile_rows = min(self.TILE_SIZE, rows - i)
+                tile_cols = min(self.TILE_SIZE, cols - j)
+                
+                tile1 = [matrix1[i + r][j:j + tile_cols] for r in range(tile_rows)]
+                tile2 = [matrix2[i + r][j:j + tile_cols] for r in range(tile_rows)]
+                
+                # Process tile
+                tile_result = self._execute_tile(operation, tile1, tile2)
+                
+                # Copy result back
+                for r in range(tile_rows):
+                    for c in range(tile_cols):
+                        result[i + r][j + c] = tile_result[r][c]
         
-        total_elements = (rows1 * cols1) + (rows2 * cols2)
-        if operation == Operation.DOT:
-            # Matrix multiplication needs more compute time
-            wait_time = 0.01 + total_elements * 0.0001
-        else:
-            # Element-wise operations are fast
-            wait_time = 0.001 + total_elements * 0.00001
-        time.sleep(wait_time)
+        return result
+    
+    def _execute_tiled_matmul(
+        self,
+        matrix1: List[List[int]],
+        matrix2: List[List[int]]
+    ) -> List[List[int]]:
+        """Execute matrix multiplication using tiling."""
+        rows1, cols1 = len(matrix1), len(matrix1[0])
+        rows2, cols2 = len(matrix2), len(matrix2[0])
+        result = [[0] * cols2 for _ in range(rows1)]
         
-        # Receive result
-        result = self._receive_matrix()
+        # Process in tiles: C[i:i+t, j:j+t] += A[i:i+t, k:k+t] @ B[k:k+t, j:j+t]
+        for i in range(0, rows1, self.TILE_SIZE):
+            for j in range(0, cols2, self.TILE_SIZE):
+                for k in range(0, cols1, self.TILE_SIZE):
+                    # Extract tiles
+                    tile_rows1 = min(self.TILE_SIZE, rows1 - i)
+                    tile_cols1 = min(self.TILE_SIZE, cols1 - k)
+                    tile_rows2 = min(self.TILE_SIZE, rows2 - k)
+                    tile_cols2 = min(self.TILE_SIZE, cols2 - j)
+                    
+                    tile1 = [matrix1[i + r][k:k + tile_cols1] for r in range(tile_rows1)]
+                    tile2 = [matrix2[k + r][j:j + tile_cols2] for r in range(tile_rows2)]
+                    
+                    # Compute tile product
+                    tile_result = self._execute_tile(Operation.DOT, tile1, tile2)
+                    
+                    # Accumulate result
+                    for r in range(len(tile_result)):
+                        for c in range(len(tile_result[0])):
+                            result[i + r][j + c] += tile_result[r][c]
         
         return result
     
