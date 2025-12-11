@@ -6,8 +6,15 @@ Tests matrix operations from 1x1 to 32x32 and measures performance
 
 import time
 import numpy as np
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 from src.fpga_interface.matrix_processor import MatrixProcessor
 from src.fpga_interface.operations import Operation
+
 
 def generate_random_matrix(rows, cols, min_val=0, max_val=100):
     """Generate a random matrix with integer values"""

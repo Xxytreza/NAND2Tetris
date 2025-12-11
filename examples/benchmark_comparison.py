@@ -3,7 +3,12 @@
 import time
 import os
 import numpy as np
+
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 from src.fpga_interface.matrix_processor import MatrixProcessor
+
 
 # Force single-threaded execution for fair comparison with FPGA (50MHz single core)
 os.environ['OMP_NUM_THREADS'] = '1'
@@ -207,12 +212,12 @@ def run_comparison_benchmark(port=None, baudrate=115200):
     all_results = []
     
     for operation in operations:
-        print(f"\n{'=' * 130}")
+        print(f"\n{'=' * 90}")
         print(f"OPERATION: {operation.upper()}")
-        print(f"{'=' * 130}")
-        print(f"{'Size':<8} {'FPGA Tot':<12} {'Send':<12} {'Compute':<12} {'Recv':<12} {'NumPy':<12} {'Python':<12} {'vs NumPy':<12} {'vs Py':<12}")
-        print(f"{'':8} {'(ms)':<12} {'(ms)':<12} {'(ms)':<12} {'(ms)':<12} {'(ms)':<12} {'(ms)':<12} {'':12} {'':12}")
-        print("-" * 130)
+        print(f"{'=' * 90}")
+        print(f"{'Size':<8} {'FPGA Tot':<12} {'Send':<12} {'Compute':<12} {'Recv':<12} {'Python':<12} {'Speedup':<12}")
+        print(f"{'':8} {'(ms)':<12} {'(ms)':<12} {'(ms)':<12} {'(ms)':<12} {'(ms)':<12} {'':12}")
+        print("-" * 90)
         
         for size in sizes:
             # Generate test matrices
@@ -227,54 +232,39 @@ def run_comparison_benchmark(port=None, baudrate=115200):
                 # Benchmark FPGA
                 fpga_result = benchmark_fpga(processor, mat1_list, mat2_list, operation, num_runs=3)
                 
-                # Benchmark NumPy (100 iterations for precision on fast operations)
-                if operation == 'add':
-                    numpy_result = benchmark_implementation('NumPy', numpy_add, mat1_np, mat2_np, num_runs=100)
-                elif operation == 'mult':
-                    numpy_result = benchmark_implementation('NumPy', numpy_multiply, mat1_np, mat2_np, num_runs=100)
-                elif operation == 'matmul':
-                    numpy_result = benchmark_implementation('NumPy', numpy_matmul, mat1_np, mat2_np, num_runs=100)
-                
-                # Benchmark Pure Python (skip for large matrices as it's too slow)
-                # Adjust number of runs based on size
-                if size <= 16:
+                # Benchmark Pure Python (always run, adjust iterations based on size)
+                if size <= 8:
                     python_runs = 100
+                elif size <= 16:
+                    python_runs = 50
                 elif size <= 32:
                     python_runs = 10
                 elif size <= 48:
                     python_runs = 3
                 else:
-                    python_runs = 0  # Too slow
+                    python_runs = 1  # Even large matrices, run at least once
                 
-                if python_runs > 0:
-                    if operation == 'add':
-                        python_result = benchmark_implementation('Python', python_add, mat1_list, mat2_list, num_runs=python_runs)
-                    elif operation == 'mult':
-                        python_result = benchmark_implementation('Python', python_multiply, mat1_list, mat2_list, num_runs=python_runs)
-                    elif operation == 'matmul':
-                        python_result = benchmark_implementation('Python', python_matmul, mat1_list, mat2_list, num_runs=python_runs)
-                    python_time = python_result['avg_ms']
-                else:
-                    python_time = None
+                if operation == 'add':
+                    python_result = benchmark_implementation('Python', python_add, mat1_list, mat2_list, num_runs=python_runs)
+                elif operation == 'mult':
+                    python_result = benchmark_implementation('Python', python_multiply, mat1_list, mat2_list, num_runs=python_runs)
+                elif operation == 'matmul':
+                    python_result = benchmark_implementation('Python', python_matmul, mat1_list, mat2_list, num_runs=python_runs)
                 
-                # Calculate speedups and percentages
+                python_time = python_result['avg_ms']
+                
+                # Calculate speedups
                 fpga_total = fpga_result['avg_ms']
                 fpga_send = fpga_result['avg_send_ms']
                 fpga_compute = fpga_result['avg_compute_ms']
                 fpga_recv = fpga_result['avg_recv_ms']
-                numpy_time = numpy_result['avg_ms']
                 
-                # Compare FPGA compute time vs NumPy (fair comparison)
-                compute_vs_numpy = f"{numpy_time / fpga_compute:.2f}x" if fpga_compute > 0 else "N/A"
-                total_vs_numpy = f"{numpy_time / fpga_total:.2f}x" if fpga_total > 0 else "N/A"
-                
-                fpga_vs_python = f"{python_time / fpga_total:.2f}x" if python_time and fpga_total > 0 else "N/A"
-                
-                python_str = f"{python_time:<12.2f}" if python_time else "Too slow    "
+                # FPGA vs Python speedup
+                speedup = f"{python_time / fpga_total:.2f}x" if fpga_total > 0 else "N/A"
                 
                 # Format size with proper alignment
                 size_str = f"{size}x{size}"
-                print(f"{size_str:<8} {fpga_total:<12.2f} {fpga_send:<12.2f} {fpga_compute:<12.2f} {fpga_recv:<12.2f} {numpy_time:<12.4f} {python_str} {total_vs_numpy:<12} {fpga_vs_python:<12}")
+                print(f"{size_str:<8} {fpga_total:<12.2f} {fpga_send:<12.2f} {fpga_compute:<12.2f} {fpga_recv:<12.2f} {python_time:<12.2f} {speedup:<12}")
                 
                 all_results.append({
                     'size': size,
@@ -283,7 +273,6 @@ def run_comparison_benchmark(port=None, baudrate=115200):
                     'fpga_send_ms': fpga_send,
                     'fpga_compute_ms': fpga_compute,
                     'fpga_recv_ms': fpga_recv,
-                    'numpy_ms': numpy_time,
                     'python_ms': python_time
                 })
                 
@@ -315,45 +304,36 @@ def run_comparison_benchmark(port=None, baudrate=115200):
         print(f"    Compute: {avg_compute:.2f} ms ({avg_compute/avg_total*100:.1f}%)")
         print(f"    Receive: {avg_recv:.2f} ms ({avg_recv/avg_total*100:.1f}%)")
         
-        # FPGA Compute vs NumPy (fair comparison)
-        fpga_compute_faster = sum(1 for r in op_results if r['fpga_compute_ms'] < r['numpy_ms'])
-        numpy_faster_compute = sum(1 for r in op_results if r['numpy_ms'] < r['fpga_compute_ms'])
-        
-        avg_speedup_numpy_total = np.mean([r['numpy_ms'] / r['fpga_total_ms'] for r in op_results if r['fpga_total_ms'] > 0])
-        avg_speedup_numpy_compute = np.mean([r['numpy_ms'] / r['fpga_compute_ms'] for r in op_results if r['fpga_compute_ms'] > 0])
-        
-        print(f"\n  FPGA vs NumPy (single-threaded):")
-        print(f"    Total FPGA time vs NumPy: {avg_speedup_numpy_total:.2f}x")
-        print(f"    FPGA compute only vs NumPy: {avg_speedup_numpy_compute:.2f}x")
-        print(f"    FPGA compute faster: {fpga_compute_faster}/{len(op_results)} times")
-        print(f"    NumPy faster: {numpy_faster_compute}/{len(op_results)} times")
-        
         # FPGA vs Python
-        op_results_with_python = [r for r in op_results if r['python_ms'] is not None]
-        if op_results_with_python:
-            avg_speedup_python = np.mean([r['python_ms'] / r['fpga_total_ms'] for r in op_results_with_python if r['fpga_total_ms'] > 0])
-            avg_speedup_python_compute = np.mean([r['python_ms'] / r['fpga_compute_ms'] for r in op_results_with_python if r['fpga_compute_ms'] > 0])
-            print(f"\n  FPGA vs Pure Python:")
-            print(f"    Total FPGA time vs Python: {avg_speedup_python:.2f}x")
-            print(f"    FPGA compute only vs Python: {avg_speedup_python_compute:.2f}x")
+        avg_speedup_python = np.mean([r['python_ms'] / r['fpga_total_ms'] for r in op_results if r['fpga_total_ms'] > 0])
+        avg_speedup_python_compute = np.mean([r['python_ms'] / r['fpga_compute_ms'] for r in op_results if r['fpga_compute_ms'] > 0])
+        
+        print(f"\n  FPGA vs Pure Python:")
+        print(f"    Total FPGA time vs Python: {avg_speedup_python:.2f}x")
+        print(f"    FPGA compute only vs Python: {avg_speedup_python_compute:.2f}x")
+        
+        fpga_faster = sum(1 for r in op_results if r['fpga_total_ms'] < r['python_ms'])
+        python_faster = sum(1 for r in op_results if r['python_ms'] < r['fpga_total_ms'])
+        print(f"    FPGA faster: {fpga_faster}/{len(op_results)} times")
+        print(f"    Python faster: {python_faster}/{len(op_results)} times")
         
         print()
     
-    # Best and worst cases (FPGA compute vs NumPy)
-    print("Best Cases (FPGA compute fastest vs NumPy):")
-    sorted_results = sorted(all_results, key=lambda r: r['numpy_ms'] / r['fpga_compute_ms'] if r['fpga_compute_ms'] > 0 else 0, reverse=True)
+    # Best and worst cases (FPGA total vs Python)
+    print("Best Cases (FPGA fastest vs Python):")
+    sorted_results = sorted(all_results, key=lambda r: r['python_ms'] / r['fpga_total_ms'] if r['fpga_total_ms'] > 0 else 0, reverse=True)
     for r in sorted_results[:5]:
-        speedup = r['numpy_ms'] / r['fpga_compute_ms'] if r['fpga_compute_ms'] > 0 else 0
-        print(f"  {r['size']}x{r['size']} {r['operation']}: FPGA compute {speedup:.2f}x faster than NumPy")
+        speedup = r['python_ms'] / r['fpga_total_ms'] if r['fpga_total_ms'] > 0 else 0
+        print(f"  {r['size']}x{r['size']} {r['operation']}: FPGA {speedup:.2f}x faster than Python")
     
-    print("\nWorst Cases (NumPy fastest vs FPGA compute):")
-    sorted_results = sorted(all_results, key=lambda r: r['numpy_ms'] / r['fpga_compute_ms'] if r['fpga_compute_ms'] > 0 else float('inf'))
+    print("\nWorst Cases (Python fastest vs FPGA):")
+    sorted_results = sorted(all_results, key=lambda r: r['python_ms'] / r['fpga_total_ms'] if r['fpga_total_ms'] > 0 else float('inf'))
     for r in sorted_results[:5]:
-        speedup = r['numpy_ms'] / r['fpga_compute_ms'] if r['fpga_compute_ms'] > 0 else 0
+        speedup = r['python_ms'] / r['fpga_total_ms'] if r['fpga_total_ms'] > 0 else 0
         if speedup < 1:
-            print(f"  {r['size']}x{r['size']} {r['operation']}: NumPy {1/speedup:.2f}x faster than FPGA compute")
+            print(f"  {r['size']}x{r['size']} {r['operation']}: Python {1/speedup:.2f}x faster than FPGA")
         else:
-            print(f"  {r['size']}x{r['size']} {r['operation']}: FPGA compute {speedup:.2f}x faster than NumPy")
+            print(f"  {r['size']}x{r['size']} {r['operation']}: FPGA {speedup:.2f}x faster than Python")
     
     processor.disconnect()
     print("\n✓ Benchmark complete\n")

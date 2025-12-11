@@ -19,24 +19,24 @@ class FPGAInference:
         self.processor.connect()
         self.is_connected = True
         if self.verbose:
-            print("✓ Connected to FPGA")
+            print("Connected to FPGA")
     
     def disconnect(self):
         if self.is_connected:
             self.processor.disconnect()
             self.is_connected = False
             if self.verbose:
-                print("✓ Disconnected from FPGA")
+                print("Disconnected from FPGA")
     
     def add_linear_layer(self, weights: np.ndarray, bias: Optional[np.ndarray] = None, name: str = "linear"):
         if weights.dtype != np.int32:
             if self.verbose:
-                print(f"⚠ Converting {name} weights from {weights.dtype} to int32")
+                print(f"Converting {name} weights from {weights.dtype} to int32")
             weights = weights.astype(np.int32)
         
         if bias is not None and bias.dtype != np.int32:
             if self.verbose:
-                print(f"⚠ Converting {name} bias from {bias.dtype} to int32")
+                print(f"Converting {name} bias from {bias.dtype} to int32")
             bias = bias.astype(np.int32)
         
         self.layers.append({
