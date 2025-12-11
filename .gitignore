@@ -5,3 +5,6 @@ src/processors/quartus/matrix_processor.*
 src/processors/quartus/vector_processor.*
 src/processors/fpga_interface/__pycache__/
 src/processors/fpga_interface/__pycache__/*
+data/
+src/fpga_interface/__pycache__/
+__pycache__
